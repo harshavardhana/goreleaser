@@ -1,12 +1,19 @@
 package client
 
 import (
-	"bytes"
+	"crypto/tls"
+	"net/http"
+	"net/url"
 	"os"
+	"reflect"
+	"strconv"
 
 	"github.com/apex/log"
-	"github.com/google/go-github/github"
-	"github.com/goreleaser/goreleaser/context"
+	"github.com/google/go-github/v28/github"
+	"github.com/goreleaser/goreleaser/internal/artifact"
+	"github.com/goreleaser/goreleaser/internal/tmpl"
+	"github.com/goreleaser/goreleaser/pkg/config"
+	"github.com/goreleaser/goreleaser/pkg/context"
 	"golang.org/x/oauth2"
 )
 
@@ -14,67 +21,100 @@ type githubClient struct {
 	client *github.Client
 }
 
-// NewGitHub returns a github client implementation
-func NewGitHub(ctx *context.Context) Client {
+// NewGitHub returns a github client implementation.
+func NewGitHub(ctx *context.Context) (Client, error) {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: ctx.Token},
 	)
-	return &githubClient{
-		client: github.NewClient(oauth2.NewClient(ctx, ts)),
+	httpClient := oauth2.NewClient(ctx, ts)
+	base := httpClient.Transport.(*oauth2.Transport).Base
+	if base == nil || reflect.ValueOf(base).IsNil() {
+		base = http.DefaultTransport
 	}
+	// nolint: gosec
+	base.(*http.Transport).TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: ctx.Config.GitHubURLs.SkipTLSVerify,
+	}
+	httpClient.Transport.(*oauth2.Transport).Base = base
+	client := github.NewClient(httpClient)
+	if ctx.Config.GitHubURLs.API != "" {
+		api, err := url.Parse(ctx.Config.GitHubURLs.API)
+		if err != nil {
+			return &githubClient{}, err
+		}
+		upload, err := url.Parse(ctx.Config.GitHubURLs.Upload)
+		if err != nil {
+			return &githubClient{}, err
+		}
+		client.BaseURL = api
+		client.UploadURL = upload
+	}
+
+	return &githubClient{client: client}, nil
 }
 
 func (c *githubClient) CreateFile(
 	ctx *context.Context,
-	content bytes.Buffer,
-	path string,
-) (err error) {
+	commitAuthor config.CommitAuthor,
+	repo config.Repo,
+	content []byte,
+	path,
+	message string,
+) error {
 	options := &github.RepositoryContentFileOptions{
 		Committer: &github.CommitAuthor{
-			Name:  github.String("goreleaserbot"),
-			Email: github.String("goreleaser@carlosbecker.com"),
+			Name:  github.String(commitAuthor.Name),
+			Email: github.String(commitAuthor.Email),
 		},
-		Content: content.Bytes(),
-		Message: github.String(
-			ctx.Config.ProjectName + " version " + ctx.Git.CurrentTag,
-		),
+		Content: content,
+		Message: github.String(message),
 	}
 
 	file, _, res, err := c.client.Repositories.GetContents(
 		ctx,
-		ctx.Config.Brew.GitHub.Owner,
-		ctx.Config.Brew.GitHub.Name,
+		repo.Owner,
+		repo.Name,
 		path,
 		&github.RepositoryContentGetOptions{},
 	)
-	if err != nil && res.StatusCode == 404 {
+	if err != nil && res.StatusCode != 404 {
+		return err
+	}
+
+	if res.StatusCode == 404 {
 		_, _, err = c.client.Repositories.CreateFile(
 			ctx,
-			ctx.Config.Brew.GitHub.Owner,
-			ctx.Config.Brew.GitHub.Name,
+			repo.Owner,
+			repo.Name,
 			path,
 			options,
 		)
-		return
+		return err
 	}
 	options.SHA = file.SHA
 	_, _, err = c.client.Repositories.UpdateFile(
 		ctx,
-		ctx.Config.Brew.GitHub.Owner,
-		ctx.Config.Brew.GitHub.Name,
+		repo.Owner,
+		repo.Name,
 		path,
 		options,
 	)
-	return
+	return err
 }
 
-func (c *githubClient) CreateRelease(ctx *context.Context, body string) (releaseID int, err error) {
+func (c *githubClient) CreateRelease(ctx *context.Context, body string) (string, error) {
 	var release *github.RepositoryRelease
+	title, err := tmpl.New(ctx).Apply(ctx.Config.Release.NameTemplate)
+	if err != nil {
+		return "", err
+	}
+
 	var data = &github.RepositoryRelease{
-		Name:    github.String(ctx.Git.CurrentTag),
-		TagName: github.String(ctx.Git.CurrentTag),
-		Body:    github.String(body),
-		Draft:   github.Bool(ctx.Config.Release.Draft),
+		Name:       github.String(title),
+		TagName:    github.String(ctx.Git.CurrentTag),
+		Body:       github.String(body),
+		Draft:      github.Bool(ctx.Config.Release.Draft),
+		Prerelease: github.Bool(ctx.PreRelease),
 	}
 	release, _, err = c.client.Repositories.GetReleaseByTag(
 		ctx,
@@ -90,6 +130,10 @@ func (c *githubClient) CreateRelease(ctx *context.Context, body string) (release
 			data,
 		)
 	} else {
+		// keep the pre-existing release notes
+		if release.GetBody() != "" {
+			data.Body = release.Body
+		}
 		release, _, err = c.client.Repositories.EditRelease(
 			ctx,
 			ctx.Config.Release.GitHub.Owner,
@@ -99,24 +143,35 @@ func (c *githubClient) CreateRelease(ctx *context.Context, body string) (release
 		)
 	}
 	log.WithField("url", release.GetHTMLURL()).Info("release updated")
-	return release.GetID(), err
+	githubReleaseID := strconv.FormatInt(release.GetID(), 10)
+	return githubReleaseID, err
 }
 
 func (c *githubClient) Upload(
 	ctx *context.Context,
-	releaseID int,
-	name string,
+	releaseID string,
+	artifact *artifact.Artifact,
 	file *os.File,
-) (err error) {
-	_, _, err = c.client.Repositories.UploadReleaseAsset(
+) error {
+	githubReleaseID, err := strconv.ParseInt(releaseID, 10, 64)
+	if err != nil {
+		return err
+	}
+	_, resp, err := c.client.Repositories.UploadReleaseAsset(
 		ctx,
 		ctx.Config.Release.GitHub.Owner,
 		ctx.Config.Release.GitHub.Name,
-		releaseID,
+		githubReleaseID,
 		&github.UploadOptions{
-			Name: name,
+			Name: artifact.Name,
 		},
 		file,
 	)
-	return
+	if err == nil {
+		return nil
+	}
+	if resp != nil && resp.StatusCode == 422 {
+		return err
+	}
+	return RetriableError{err}
 }

@@ -1,0 +1,94 @@
+site_name: GoReleaser
+site_description: Deliver Go binaries as fast and easily as possible
+copyright: Made with ❤️ by GoReleaser contributors.
+repo_name: goreleaser/goreleaser
+repo_url: https://github.com/goreleaser/goreleaser
+edit_uri: edit/master/www/docs/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  language: en
+  logo: static/avatar.png
+  favicon: static/favicon.ico
+  include_search_page: false
+  search_index_only: true
+
+plugins:
+  # disable temporarely because its freezing the page
+  - search:
+      prebuild_index: python
+      lang:
+      - en
+  - minify:
+      minify_html: true
+
+
+extra:
+  social:
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/goreleaser
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/goreleaser
+
+google_analytics:
+  - UA-106198408-1
+  - auto
+
+nav:
+- Home: index.md
+- intro.md
+- install.md
+- quick-start.md
+- environment.md
+- Limitations:
+  - limitations/cgo.md
+  - limitations/semver.md
+- Continuous Integration:
+  - About: ci/index.md
+  - ci/actions.md
+  - ci/circle.md
+  - ci/cloudbuild.md
+  - ci/codefresh.md
+  - ci/drone.md
+  - ci/gitlab.md
+  - ci/jenkins.md
+  - ci/semaphore.md
+  - ci/travis.md
+- Customization:
+  - About: customization/index.md
+  - customization/archive.md
+  - customization/artifactory.md
+  - customization/bintray.md
+  - customization/blob.md
+  - customization/build.md
+  - customization/checksum.md
+  - customization/publishers.md
+  - customization/docker.md
+  - customization/env.md
+  - customization/hooks.md
+  - customization/homebrew.md
+  - customization/upload.md
+  - customization/templates.md
+  - customization/nfpm.md
+  - customization/project.md
+  - customization/release.md
+  - customization/scoop.md
+  - customization/sign.md
+  - customization/snapcraft.md
+  - customization/snapshots.md
+  - customization/source.md
+- deprecations.md
+- sponsors.md
+- contributing.md
+- tutorials.md
+- links.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - meta
+  - toc:
+      permalink: true
+  - pymdownx.tabbed
+  - pymdownx.superfences
