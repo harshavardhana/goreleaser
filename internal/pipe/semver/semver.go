@@ -1,6 +1,9 @@
 package semver
 
 import (
+	"strings"
+	"time"
+
 	"github.com/Masterminds/semver/v3"
 	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/pipe"
@@ -16,8 +19,31 @@ func (Pipe) String() string {
 	return "parsing tag"
 }
 
+// genReleaseTag prints release tag to the console for easy git tagging.
+func releaseTag(ctx *context.Context, version string) string {
+	relPrefix := "RELEASE"
+	if ctx.Snapshot {
+		relPrefix = "DEVELOPMENT"
+	}
+
+	relTag := strings.Replace(version, " ", "-", -1)
+	relTag = strings.Replace(relTag, ":", "-", -1)
+	relTag = strings.Replace(relTag, ",", "", -1)
+	return relPrefix + "." + relTag
+}
+
 // Run executes the hooks.
 func (Pipe) Run(ctx *context.Context) error {
+	if ctx.GenerateMinIO {
+		buildTime := time.Now().UTC().Format(time.RFC3339)
+		ctx.MinIO = context.MinIOInfo{
+			Version:    buildTime,
+			ReleaseTag: releaseTag(ctx, buildTime),
+		}
+		ctx.Git.CurrentTag = ctx.MinIO.ReleaseTag
+		return nil
+	}
+
 	sv, err := semver.NewVersion(ctx.Git.CurrentTag)
 	if err != nil {
 		if ctx.Snapshot {

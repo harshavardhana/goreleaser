@@ -96,9 +96,6 @@ func (Pipe) Run(ctx *context.Context) error {
 			log.Debugf("group %s has %d binaries", group, len(artifacts))
 			artifacts := artifacts
 			g.Go(func() error {
-				if packageFormat(archive, artifacts[0].Goos) == "binary" {
-					return skip(ctx, archive, artifacts)
-				}
 				return create(ctx, archive, artifacts)
 			})
 		}
@@ -115,6 +112,9 @@ func create(ctx *context.Context, arch config.Archive, binaries []*artifact.Arti
 		return err
 	}
 	archivePath := filepath.Join(ctx.Config.Dist, folder+"."+format)
+	if format == "binary" {
+		archivePath = filepath.Join(ctx.Config.Dist, folder)
+	}
 	lock.Lock()
 	if err := os.MkdirAll(filepath.Dir(archivePath), 0755|os.ModeDir); err != nil {
 		lock.Unlock()
@@ -159,9 +159,13 @@ func create(ctx *context.Context, arch config.Archive, binaries []*artifact.Arti
 			return fmt.Errorf("failed to add %s -> %s to the archive: %s", binary.Path, binary.Name, err.Error())
 		}
 	}
+	artifactName := folder + "." + format
+	if format == "binary" {
+		artifactName = folder
+	}
 	ctx.Artifacts.Add(&artifact.Artifact{
 		Type:   artifact.UploadableArchive,
-		Name:   folder + "." + format,
+		Name:   artifactName,
 		Path:   archivePath,
 		Goos:   binaries[0].Goos,
 		Goarch: binaries[0].Goarch,
@@ -186,33 +190,6 @@ func wrapFolder(a config.Archive) string {
 	default:
 		return a.WrapInDirectory
 	}
-}
-
-func skip(ctx *context.Context, archive config.Archive, binaries []*artifact.Artifact) error {
-	for _, binary := range binaries {
-		log.WithField("binary", binary.Name).Info("skip archiving")
-		name, err := tmpl.New(ctx).
-			WithArtifact(binary, archive.Replacements).
-			Apply(archive.NameTemplate)
-		if err != nil {
-			return err
-		}
-		ctx.Artifacts.Add(&artifact.Artifact{
-			Type:   artifact.UploadableBinary,
-			Name:   name + binary.ExtraOr("Ext", "").(string),
-			Path:   binary.Path,
-			Goos:   binary.Goos,
-			Goarch: binary.Goarch,
-			Goarm:  binary.Goarm,
-			Gomips: binary.Gomips,
-			Extra: map[string]interface{}{
-				"Builds": []*artifact.Artifact{binary},
-				"ID":     archive.ID,
-				"Format": archive.Format,
-			},
-		})
-	}
-	return nil
 }
 
 func findFiles(template *tmpl.Template, archive config.Archive) (result []string, err error) {

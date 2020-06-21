@@ -187,6 +187,9 @@ func create(ctx *context.Context, fpm config.NFPM, format, arch string, binaries
 
 	var path = filepath.Join(ctx.Config.Dist, name+"."+format)
 	log.WithField("file", path).Info("creating")
+	if err = os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	w, err := os.Create(path)
 	if err != nil {
 		return err

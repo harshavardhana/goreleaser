@@ -32,6 +32,11 @@ func (Pipe) Run(ctx *context.Context) error {
 	ctx.Git = info
 	log.Infof("releasing %s, commit %s", info.CurrentTag, info.Commit)
 	ctx.Version = strings.TrimPrefix(ctx.Git.CurrentTag, "v")
+	if ctx.GenerateMinIO {
+		if _, err = git.Clean(git.Run("tag", ctx.Git.CurrentTag)); err != nil {
+			return err
+		}
+	}
 	return validate(ctx)
 }
 
@@ -58,6 +63,9 @@ func getInfo(ctx *context.Context) (context.GitInfo, error) {
 			info = fakeInfo
 		}
 		return info, nil
+	}
+	if ctx.GenerateMinIO {
+		info.CurrentTag = ctx.MinIO.ReleaseTag
 	}
 	return info, err
 }

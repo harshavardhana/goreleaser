@@ -64,26 +64,30 @@ const (
 func New(ctx *context.Context) *Template {
 	sv := ctx.Semver
 	rawVersionV := fmt.Sprintf("%d.%d.%d", sv.Major, sv.Minor, sv.Patch)
-
+	fields := Fields{
+		projectName: ctx.Config.ProjectName,
+		version:     ctx.Version,
+		rawVersion:  rawVersionV,
+		tag:         ctx.Git.CurrentTag,
+		commit:      ctx.Git.Commit,
+		shortCommit: ctx.Git.ShortCommit,
+		fullCommit:  ctx.Git.FullCommit,
+		gitURL:      ctx.Git.URL,
+		env:         ctx.Env,
+		date:        time.Now().UTC().Format(time.RFC3339),
+		timestamp:   time.Now().UTC().Unix(),
+		isSnapshot:  ctx.Snapshot,
+	}
+	if ctx.GenerateMinIO {
+		fields[rawVersion] = ctx.MinIO.ReleaseTag
+	} else {
+		fields[major] = ctx.Semver.Major
+		fields[minor] = ctx.Semver.Minor
+		fields[patch] = ctx.Semver.Patch
+		fields[prerelease] = ctx.Semver.Prerelease
+	}
 	return &Template{
-		fields: Fields{
-			projectName: ctx.Config.ProjectName,
-			version:     ctx.Version,
-			rawVersion:  rawVersionV,
-			tag:         ctx.Git.CurrentTag,
-			commit:      ctx.Git.Commit,
-			shortCommit: ctx.Git.ShortCommit,
-			fullCommit:  ctx.Git.FullCommit,
-			gitURL:      ctx.Git.URL,
-			env:         ctx.Env,
-			date:        time.Now().UTC().Format(time.RFC3339),
-			timestamp:   time.Now().UTC().Unix(),
-			major:       ctx.Semver.Major,
-			minor:       ctx.Semver.Minor,
-			patch:       ctx.Semver.Patch,
-			prerelease:  ctx.Semver.Prerelease,
-			isSnapshot:  ctx.Snapshot,
-		},
+		fields: fields,
 	}
 }
 

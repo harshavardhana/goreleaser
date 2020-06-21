@@ -24,6 +24,7 @@ type releaseOpts struct {
 	releaseFooter string
 	snapshot      bool
 	skipPublish   bool
+	generateMinIO bool
 	skipSign      bool
 	skipValidate  bool
 	rmDist        bool
@@ -67,6 +68,7 @@ func newReleaseCmd() *releaseCmd {
 	cmd.Flags().BoolVar(&root.opts.snapshot, "snapshot", false, "Generate an unversioned snapshot release, skipping all validations and without publishing any artifacts")
 	cmd.Flags().BoolVar(&root.opts.skipPublish, "skip-publish", false, "Skips publishing artifacts")
 	cmd.Flags().BoolVar(&root.opts.skipSign, "skip-sign", false, "Skips signing the artifacts")
+	cmd.Flags().BoolVar(&root.opts.generateMinIO, "gen-minio", true, "Generates MinIO compatible release tags")
 	cmd.Flags().BoolVar(&root.opts.skipValidate, "skip-validate", false, "Skips several sanity checks")
 	cmd.Flags().BoolVar(&root.opts.rmDist, "rm-dist", false, "Remove the dist folder before building")
 	cmd.Flags().IntVarP(&root.opts.parallelism, "parallelism", "p", 4, "Amount tasks to run concurrently")
@@ -107,6 +109,7 @@ func setupReleaseContext(ctx *context.Context, options releaseOpts) *context.Con
 	ctx.ReleaseHeader = options.releaseHeader
 	ctx.ReleaseFooter = options.releaseFooter
 	ctx.Snapshot = options.snapshot
+	ctx.GenerateMinIO = ctx.Snapshot || options.generateMinIO
 	ctx.SkipPublish = ctx.Snapshot || options.skipPublish
 	ctx.SkipValidate = ctx.Snapshot || options.skipValidate
 	ctx.SkipSign = options.skipSign

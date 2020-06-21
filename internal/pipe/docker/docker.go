@@ -107,6 +107,9 @@ func doRun(ctx *context.Context) error {
 				artifact.ByGoarm(docker.Goarm),
 				artifact.ByType(artifact.Binary),
 				func(a *artifact.Artifact) bool {
+					if len(binaryNames) == 0 {
+						return true
+					}
 					for _, bin := range binaryNames {
 						if a.ExtraOr("Binary", "").(string) == bin {
 							return true
@@ -118,11 +121,9 @@ func doRun(ctx *context.Context) error {
 			if len(docker.Builds) > 0 {
 				filters = append(filters, artifact.ByIDs(docker.Builds...))
 			}
+
 			var binaries = ctx.Artifacts.Filter(artifact.And(filters...)).List()
-			// TODO: not so good of a check, if one binary match multiple
-			// binaries and the other match none, this will still pass...
-			log.WithField("binaries", binaries).Debug("found binaries")
-			if len(binaries) != len(docker.Binaries) {
+			if len(binaries) != len(docker.Binaries) && len(docker.Binaries) > 0 {
 				return fmt.Errorf(
 					"%d binaries match docker definition: %v: %s_%s_%s, should be %d",
 					len(binaries),
@@ -159,6 +160,7 @@ func process(ctx *context.Context, docker config.Docker, bins []*artifact.Artifa
 			return errors.Wrapf(err, "failed to link extra file '%s'", file)
 		}
 	}
+
 	for _, bin := range bins {
 		if err := os.Link(bin.Path, filepath.Join(tmp, filepath.Base(bin.Path))); err != nil {
 			return errors.Wrap(err, "failed to link binary")

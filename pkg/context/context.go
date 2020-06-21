@@ -82,7 +82,15 @@ type Context struct {
 	PreRelease         bool
 	Deprecated         bool
 	Parallelism        int
+	GenerateMinIO      bool
+	MinIO              MinIOInfo
 	Semver             Semver
+}
+
+// MinIOInfo custom minio extension for releases
+type MinIOInfo struct {
+	Version    string
+	ReleaseTag string
 }
 
 // Semver represents a semantic version.

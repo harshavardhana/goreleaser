@@ -4,14 +4,11 @@ package checksums
 
 import (
 	"fmt"
-	"io"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/semerrgroup"
-	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/context"
 )
 
@@ -47,43 +44,24 @@ func (Pipe) Run(ctx *context.Context) (err error) {
 		return nil
 	}
 
-	filename, err := tmpl.New(ctx).Apply(ctx.Config.Checksum.NameTemplate)
-	if err != nil {
-		return err
-	}
-	file, err := os.OpenFile(
-		filepath.Join(ctx.Config.Dist, filename),
-		os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-		0644,
-	)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var g = semerrgroup.New(ctx.Parallelism)
-	for _, artifact := range artifactList {
-		artifact := artifact
-		g.Go(func() error {
-			return checksums(ctx.Config.Checksum.Algorithm, file, artifact)
+	for _, arf := range artifactList {
+		if err = checksums(ctx.Config.Checksum.Algorithm, arf); err != nil {
+			return err
+		}
+		ctx.Artifacts.Add(&artifact.Artifact{
+			Type: arf.Type,
+			Path: arf.Path + "." + ctx.Config.Checksum.Algorithm + "sum",
+			Name: arf.Name + "." + ctx.Config.Checksum.Algorithm + "sum",
 		})
 	}
-	ctx.Artifacts.Add(&artifact.Artifact{
-		Type: artifact.Checksum,
-		Path: file.Name(),
-		Name: filename,
-	})
-	return g.Wait()
+	return nil
 }
 
-func checksums(algorithm string, w io.Writer, artifact *artifact.Artifact) error {
+func checksums(algorithm string, artifact *artifact.Artifact) error {
 	log.WithField("file", artifact.Name).Info("checksumming")
 	sha, err := artifact.Checksum(algorithm)
 	if err != nil {
 		return err
 	}
-	// TODO: could change the signature to io.StringWriter, but will break
-	// compatibility with go versions bellow 1.12
-	_, err = io.WriteString(w, fmt.Sprintf("%v  %v\n", sha, artifact.Name))
-	return err
+	return ioutil.WriteFile(artifact.Path+"."+algorithm+"sum", []byte(fmt.Sprintf("%v  %v\n", sha, filepath.Base(artifact.Name))), 0644)
 }
