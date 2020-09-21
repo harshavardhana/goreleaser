@@ -10,10 +10,11 @@ require (
 	github.com/campoy/unique v0.0.0-20180121183637-88950e537e7e
 	github.com/client9/misspell v0.3.4
 	github.com/fatih/color v1.9.0
-	github.com/golangci/golangci-lint v1.29.0
+	github.com/go-lintpack/lintpack v0.5.2 // indirect
+	github.com/golangci/golangci-lint v1.31.0
 	github.com/google/go-github/v28 v28.1.1
-	github.com/goreleaser/nfpm v1.4.1
-	github.com/imdario/mergo v0.3.10
+	github.com/goreleaser/nfpm v1.8.0
+	github.com/imdario/mergo v0.3.11
 	github.com/jarcoal/httpmock v1.0.5
 	github.com/mattn/go-shellwords v1.0.10
 	github.com/mattn/go-zglob v0.0.3
@@ -27,4 +28,5 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	gopkg.in/yaml.v2 v2.3.0
+	sourcegraph.com/sqs/pbtypes v0.0.0-20180604144634-d3ebe8f20ae4 // indirect
 )
